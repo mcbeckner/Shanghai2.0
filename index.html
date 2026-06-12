@@ -279,17 +279,14 @@
 
         if (stats && stats.fullGames && stats.fullGames.length > 0) {
             totalGamesText = `Total Games Played: ${stats.fullGames.length}`;
-            // Find the last game and its winner
-            const sortedGames = [...stats.fullGames].sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp ascending
+            const sortedGames = [...stats.fullGames].sort((a, b) => a.timestamp - b.timestamp);
             const lastGame = sortedGames[sortedGames.length - 1];
-            // Ensure lastGame.scores and lastGame.scores[0] exist before accessing properties
             const winner = lastGame.scores && lastGame.scores.length > 0 ? [...lastGame.scores].sort((a, b) => a.total - b.total)[0] : null;
             if (winner) {
                  lastWinnerText = `Last Winner: ${winner.name} (${winner.total} pts)`;
             } else {
                  lastWinnerText = "Last winner not available";
             }
-           
         }
         
         document.getElementById('setupLastWinner').innerText = lastWinnerText;
@@ -793,30 +790,36 @@
     }
 
     function showTab(tab) {
-        document.getElementById('navGame').classList.toggle('active', tab === 'game');
-        document.getElementById('navStats').classList.toggle('active', tab === 'stats');
-        document.getElementById('navHistory').classList.toggle('active', tab === 'history');
-        
+        // Deactivate all nav buttons
+        document.getElementById('navGame').classList.remove('active');
+        document.getElementById('navStats').classList.remove('active');
+        document.getElementById('navHistory').classList.remove('active');
+
+        // Hide all content views
         document.getElementById('gameView').classList.add('hidden'); 
         document.getElementById('statsView').classList.add('hidden'); 
         document.getElementById('setupView').classList.add('hidden');
         document.getElementById('historyView').classList.add('hidden');
         document.getElementById('seatingView').classList.add('hidden');
-        
-        if (tab === 'game') { 
-            // Only show gameView if game is actively running (timerRunning is true)
-            if (timerRunning) document.getElementById('gameView').classList.remove('hidden'); 
-            else document.getElementById('setupView').classList.remove('hidden'); 
-        } 
-        else if (tab === 'stats') { 
-            document.getElementById('statsView').classList.remove('hidden'); 
-            renderOverallStats(); 
-        }
-        else if (tab === 'history') {
+
+        // Activate the selected nav button and show the corresponding view
+        if (tab === 'game') {
+            document.getElementById('navGame').classList.add('active');
+            if (timerRunning) { // If game is active, show game view
+                document.getElementById('gameView').classList.remove('hidden');
+            } else { // Otherwise, show setup view
+                document.getElementById('setupView').classList.remove('hidden');
+            }
+        } else if (tab === 'stats') {
+            document.getElementById('navStats').classList.add('active');
+            document.getElementById('statsView').classList.remove('hidden');
+            renderOverallStats();
+        } else if (tab === 'history') {
+            document.getElementById('navHistory').classList.add('active');
             document.getElementById('historyView').classList.remove('hidden');
             renderGameHistory();
         }
-        updateStatsDisplays(); // Ensure displays are updated whenever tab changes
+        updateStatsDisplays(); // Update global stats info for all views
     }
 
     (async () => {
