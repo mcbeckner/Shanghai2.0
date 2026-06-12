@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shanghai Pro - Firebase Elite</title>
+    <style>
+        :root {
+            --primary: #2c3e50; --accent: #27ae60; --danger: #e74c3c;
+            --warning: #f39c12; --light: #f8f9fa; --blue: #3498db;
+        }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: #eee; touch-action: manipulation; }
+        .hidden { display: none !important; }
+        
+        /* Navigation & Timer */
+        .nav { display: flex; background: var(--primary); padding: 5px; align-items: center; position: sticky; top:0; z-index: 1000;}
+        .nav button { flex: 1; padding: 12px; color: white; background: none; border: none; font-weight: bold; }
+        .nav button.active { border-bottom: 4px solid var(--accent); }
+        #gameTimer { color: #f1c40f; font-family: monospace; font-size: 1.1em; padding-right: 10px; min-width: 90px; text-align: right; cursor: pointer;}
+
+        /* Setup Screen */
+        #setupView { padding: 20px; text-align: center; }
+        .player-chip { 
+            display: inline-block; padding: 15px 25px; margin: 5px; 
+            border-radius: 25px; background: white; border: 2px solid #ccc; font-weight: bold;
+        }
+        .player-chip.selected { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* Banner */
+        @keyframes flashRed { 0% { background: red; } 50% { background: yellow; } 100% { background: red; } }
+        #streakBanner {
+            position: fixed; top:0; left:0; width:100%; height:100%; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            animation: flashRed 0.2s infinite; text-align: center; padding: 20px; box-sizing: border-box;
+        }
+
+        /* Table Optimization */
+        .table-wrap { overflow: auto; background: white; max-height: 80vh; -webkit-overflow-scrolling: touch; }
+        table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 600px; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
+        thead th { position: sticky; top: 0; background: #f4f4f4; z-index: 100; box-shadow: 0 2px 2px rgba(0,0,0,0.1); }
+        .sticky-col { position: sticky; left: 0; background: #eee !important; font-weight: bold; z-index: 200; border-right: 2px solid #999; }
+        thead th.sticky-col { z-index: 300; }
+
+        .sh-cell { background: var(--warning) !important; color: white; }
+        .low-score { background: #2ecc71 !important; color: white; }
+        .high-score { background: #e74c3c !important; color: white; }
+        .total-row { background: #e8e8e8; font-weight: bold; }
+        .cut-row { background: #d1ecf1; font-size: 0.8em; }
+
+        /* Keypad Optimization */
+        #keypadModal { position: fixed; bottom: 0; left: 0; width: 100%; background: #34495e; padding: 10px; box-sizing: border-box; z-index: 2000; border-radius: 20px 20px 0 0; }
+        #kpDisplay { color: white; font-size: 1.8em; text-align: center; margin-bottom: 8px; font-weight: bold; }
+        .kp-container { display: flex; gap: 10px; }
+        .kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 2; }
+        .kp-actions { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+        .kp-container button { padding: 15px 0; font-size: 1.4em; border-radius: 10px; border: none; background: white; font-weight: bold; }
+        .btn-sh { background: var(--warning) !important; color: white; flex: 1; }
+        .btn-ent { background: var(--accent) !important; color: white; flex: 2; }
+        .btn-clear { background: #95a5a6 !important; color: white; }
+
+        @media (orientation: landscape) { #keypadModal { padding: 5px; } .kp-container button { padding: 8px 0; } .table-wrap { max-height: 60vh; } }
+        .stat-best { background: rgba(46, 204, 113, 0.4) !important; font-weight: bold; }
+        .stat-worst { background: rgba(231, 76, 60, 0.4) !important; font-weight: bold; }
+        .clickable-header { text-decoration: underline; color: var(--blue); cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="nav">
+    <button id="navGame" class="active">GAME</button>
+    <button id="navStats">OVERALL STATS</button>
+    <div id="gameTimer" class="hidden">00:00:00</div>
+</div>
+
+<div id="streakBanner" class="hidden">
+    <h1 id="streakText" style="font-size: 2em; margin-bottom: 20px;"></h1>
+    <button id="dismissStreakBtn" style="padding: 15px 30px; font-size: 1.2em; background: white; border: 4px solid black; border-radius: 12px; font-weight: bold;">Ok, we'll Shanghai them!</button>
+</div>
+
+<div id="setupView">
+    <h2>Who is playing?</h2>
+    <div id="playerSelectContainer"></div>
+    <button id="addGuestBtn" style="margin-top:10px; padding: 10px 20px; background: #95a5a6; color: white; border: none; border-radius: 8px; font-weight: bold;">+ Add Guest Player</button>
+    <br>
+    <button id="startGameBtn" style="margin-top:20px; padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold;">START GAME</button>
+</div>
+
+<div id="gameView" class="hidden">
+    <div class="table-wrap">
+        <table id="gameTable"><thead id="gameHead"></thead><tbody id="gameBody"></tbody></table>
+    </div>
+    <button id="finalizeBtn" style="width:100%; padding: 20px; background: var(--primary); color: white; border: none; font-weight: bold;">FINISH & SAVE GAME</button>
+</div>
+
+<div id="statsView" class="hidden">
+    <div style="padding: 10px; background: #fff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc;">
+        <select id="yearSelect" style="padding: 10px; border-radius: 5px;"></select>
+        <button id="archiveBtn" style="background: var(--blue); color: white; border: none; padding: 10px; border-radius: 5px; font-weight: bold;">Archive Year</button>
+    </div>
+    <div class="table-wrap" id="statsContainer"></div>
+</div>
+
+<div id="overlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1500;"></div>
+<div id="detailPopup" class="hidden" style="position:fixed; top:10%; left:5%; width:90%; height:80%; background:white; z-index:2000; border-radius:15px; padding:15px; overflow-y:auto;">
+    <h3 id="popupTitle">Details</h3>
+    <ul id="popupList" style="list-style: none; padding: 0;"></ul>
+    <button id="closePopupBtn" style="width:100%; padding: 15px; background: #ccc; border: none; margin-top: 10px; border-radius: 8px;">Close</button>
+</div>
+
+<div id="keypadModal" class="hidden">
+    <div id="kpDisplay">0</div>
+    <div class="kp-container">
+        <div class="kp-grid">
+            <button class="kp-num" data-val="1">1</button><button class="kp-num" data-val="2">2</button><button class="kp-num" data-val="3">3</button>
+            <button class="kp-num" data-val="4">4</button><button class="kp-num" data-val="5">5</button><button class="kp-num" data-val="6">6</button>
+            <button class="kp-num" data-val="7">7</button><button class="kp-num" data-val="8">8</button><button class="kp-num" data-val="9">9</button>
+            <button id="kpClearBtn" class="btn-clear">C</button><button class="kp-num" data-val="0">0</button>
+        </div>
+        <div class="kp-actions">
+            <button class="btn-sh" id="kpShBtn">SH</button>
+            <button class="btn-ent" id="kpEnterBtn">ENTER</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyADChMxDmlSwxTfmc777X1WP98uDBbE6Yk",
+        authDomain: "shanghai-8a37a.firebaseapp.com",
+        projectId: "shanghai-8a37a",
+        storageBucket: "shanghai-8a37a.firebasestorage.app",
+        messagingSenderId: "726381279517",
+        appId: "1:726381279517:web:f6bce2b7bf44a3192ac9f4"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const currentYear = new Date().getFullYear().toString();
+    const allPlayers = ["Mitch", "Dee", "Noel", "Ashley", "Tallon", "Audrey"];
+
+    let activePlayers = [];
+    let guestPlayers = [];
+    let stats = null;
+    let startTime, accumulatedTime = 0, timerRunning = false, timerInterval;
+    let activeCell = null, kpVal = "", kpSh = false;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playAlarm() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+    }
+
+    async function loadStats(year) {
+        const docSnap = await getDoc(doc(db, "shanghaiStats", year));
+        if (docSnap.exists()) { stats = docSnap.data(); } 
+        else { stats = getEmptyStats(); await setDoc(doc(db, "shanghaiStats", year), stats); }
+        if (!document.getElementById('statsView').classList.contains('hidden')) renderOverallStats();
+    }
+
+    function getEmptyStats() {
+        return {
+            playerData: allPlayers.reduce((acc, p) => {
+                acc[p] = { wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, lowWin: 999, highLoss: 0, maxWinStreak: 0, currentWinStreak: 0, maxLossStreak: 0, currentLossStreak: 0 }; return acc;
+            }, {}),
+            historySH: [], historyWins: [], historyLosses: [], gameTimes: [],
+            cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 }
+        };
+    }
+
+    function initSetup() {
+        const cont = document.getElementById('playerSelectContainer');
+        cont.innerHTML = '';
+        allPlayers.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'player-chip' + (activePlayers.includes(p) ? ' selected' : '');
+            div.innerText = p;
+            div.onclick = () => {
+                const idx = activePlayers.indexOf(p);
+                if (idx > -1) activePlayers.splice(idx, 1); else activePlayers.push(p);
+                div.classList.toggle('selected');
+            };
+            cont.appendChild(div);
+        });
+        guestPlayers.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'player-chip selected';
+            div.style.borderStyle = 'dashed';
+            div.innerText = p + " (Guest)";
+            div.onclick = () => {
+                guestPlayers = guestPlayers.filter(g => g !== p);
+                activePlayers = activePlayers.filter(a => a !== p);
+                initSetup();
+            };
+            cont.appendChild(div);
+        });
+    }
+
+    async function finalizeGame() {
+        if (!confirm("Submit scores? (Guests not saved to Stats)")) return;
+        const finalSecs = Math.floor((accumulatedTime + (Date.now() - startTime)) / 1000);
+        clearInterval(timerInterval);
+        let gameScores = activePlayers.map((p, i) => ({ name: p, total: parseInt(document.getElementById(`total-7-${i}`).innerText) }));
+        gameScores.sort((a, b) => a.total - b.total);
+        const winner = gameScores[0]; const loser = gameScores[gameScores.length - 1];
+
+        stats.gameTimes.push({ players: activePlayers.length, time: finalSecs });
+        activePlayers.forEach(p => {
+            if (allPlayers.includes(p)) {
+                const pd = stats.playerData[p];
+                if (p === winner.name) {
+                    pd.wins++; pd.currentWinStreak++; pd.currentLossStreak = 0;
+                    if (pd.currentWinStreak > pd.maxWinStreak) pd.maxWinStreak = pd.currentWinStreak;
+                } else if (p === loser.name) {
+                    pd.losses++; pd.currentLossStreak++; pd.currentWinStreak = 0;
+                    if (pd.currentLossStreak > pd.maxLossStreak) pd.maxLossStreak = pd.currentLossStreak;
+                } else { pd.currentWinStreak = 0; pd.currentLossStreak = 0; }
+                const pIdx = activePlayers.indexOf(p);
+                for(let r=1; r<=7; r++){
+                    const cell = document.getElementById(`cell-${r}-${pIdx}`);
+                    if(cell.classList.contains('sh-cell')){
+                        const s = parseInt(cell.innerText);
+                        pd.shCount++; stats.historySH.push({name: p, score: s});
+                        if(s > pd.worstSHScore) pd.worstSHScore = s;
+                    }
+                }
+            }
+        });
+
+        if (allPlayers.includes(winner.name)) {
+            stats.historyWins.push(winner);
+            if (winner.total < stats.playerData[winner.name].lowWin) stats.playerData[winner.name].lowWin = winner.total;
+        }
+        if (allPlayers.includes(loser.name)) {
+            stats.historyLosses.push(loser);
+            if (loser.total > stats.playerData[loser.name].highLoss) stats.playerData[loser.name].highLoss = loser.total;
+        }
+
+        document.querySelectorAll('.cut-row').forEach(row => {
+            activePlayers.forEach((p, i) => {
+                const cVal = row.children[i+1].getAttribute('data-cutter');
+                if (cVal && cVal !== "0" && allPlayers.includes(p)) {
+                    stats.playerData[p].cuts++; stats.cutBreakdown[cVal]++;
+                }
+            });
+        });
+
+        await setDoc(doc(db, "shanghaiStats", currentYear), stats);
+        location.reload();
+    }
+
+    function buildTable() {
+        const head = document.getElementById('gameHead'); const body = document.getElementById('gameBody');
+        head.innerHTML = `<tr><th class="sticky-col">Rnd</th>${activePlayers.map(p => `<th>${p}</th>`).join('')}</tr>`;
+        body.innerHTML = "";
+        for (let r = 1; r <= 7; r++) {
+            let rowHtml = `<tr id="row-score-${r}"><td class="sticky-col">${r} <button id="cutBtn-${r}">C</button></td>`;
+            activePlayers.forEach((p, i) => { rowHtml += `<td id="cell-${r}-${i}">0</td>`; });
+            rowHtml += `</tr><tr id="row-total-${r}" class="total-row"><td class="sticky-col">TOT</td>`;
+            activePlayers.forEach((p, i) => { rowHtml += `<td id="total-${r}-${i}">0</td>`; });
+            rowHtml += `</tr>`;
+            body.innerHTML += rowHtml;
+        }
+        for (let r = 1; r <= 7; r++) {
+            document.getElementById(`cutBtn-${r}`).onclick = () => openCutSelection(r);
+            activePlayers.forEach((p, i) => { document.getElementById(`cell-${r}-${i}`).onclick = () => openKeypad(r, i, p); });
+        }
+    }
+
+    function calculate() {
+        let runningTotals = new Array(activePlayers.length).fill(0);
+        for (let r = 1; r <= 7; r++) {
+            let roundFinals = [];
+            activePlayers.forEach((p, i) => {
+                let score = parseInt(document.getElementById(`cell-${r}-${i}`).innerText) || 0;
+                let row = document.getElementById(`row-score-${r}`);
+                let next = row.nextElementSibling;
+                while(next && next.className === 'cut-row') {
+                    score += (next.children[i+1].innerText === "50" ? 50 : 0);
+                    next = next.nextElementSibling;
+                }
+                runningTotals[i] += score; roundFinals.push(runningTotals[i]);
+                document.getElementById(`total-${r}-${i}`).innerText = runningTotals[i];
+            });
+            const min = Math.min(...roundFinals); const max = Math.max(...roundFinals);
+            activePlayers.forEach((p, i) => {
+                const cell = document.getElementById(`total-${r}-${i}`);
+                cell.className = "";
+                if (roundFinals[i] === min) cell.classList.add('low-score');
+                if (roundFinals[i] === max) cell.classList.add('high-score');
+            });
+        }
+    }
+
+    function openKeypad(r, i, pName) {
+        activeCell = { r, i }; kpVal = ""; kpSh = false;
+        document.getElementById('kpDisplay').innerText = "0";
+        document.getElementById('kpShBtn').style.background = "var(--warning)";
+        document.getElementById('keypadModal').classList.remove('hidden');
+    }
+
+    function openCutSelection(r) {
+        document.getElementById('popupTitle').innerText = "Who got the Cut?";
+        const list = document.getElementById('popupList'); list.innerHTML = '';
+        activePlayers.forEach((p, i) => {
+            const btn = document.createElement('button');
+            btn.style.width = "100%"; btn.style.padding = "15px"; btn.style.margin = "5px 0"; btn.innerText = p;
+            btn.onclick = () => {
+                const totalRow = document.getElementById(`row-total-${r}`);
+                const cutMultiple = activePlayers.length * 11;
+                const cutRow = document.createElement('tr');
+                cutRow.className = 'cut-row';
+                let inner = `<td class="sticky-col">CUT (${cutMultiple})</td>`;
+                activePlayers.forEach((_, idx) => {
+                    const isCutter = (idx === i);
+                    inner += `<td data-cutter="${isCutter ? cutMultiple : 0}">${isCutter ? 'Cut' : '50'}</td>`;
+                });
+                cutRow.innerHTML = inner; totalRow.parentNode.insertBefore(cutRow, totalRow);
+                calculate(); closePopups();
+            };
+            list.appendChild(btn);
+        });
+        document.getElementById('overlay').classList.remove('hidden');
+        document.getElementById('detailPopup').classList.remove('hidden');
+    }
+
+    function renderOverallStats() {
+        const cont = document.getElementById('statsContainer'); const pData = stats.playerData;
+        const getHigh = (key) => Math.max(...allPlayers.map(p => pData[p][key]));
+        const getLow = (key) => Math.min(...allPlayers.map(p => pData[p][key] === 999 ? 1000 : pData[p][key]));
+        const maxW = getHigh('wins'), maxL = getHigh('losses'), maxSH = getHigh('shCount'), maxWS = getHigh('maxWinStreak'), maxLS = getHigh('maxLossStreak'), worstSH = getHigh('worstSHScore'), bestW = getLow('lowWin'), worstL = getHigh('highLoss');
+        const sTime = stats.gameTimes.length ? Math.min(...stats.gameTimes.map(t => t.time)) : 0;
+        const lTime = stats.gameTimes.length ? Math.max(...stats.gameTimes.map(t => t.time)) : 0;
+        let html = `<table><thead><tr><th class="sticky-col">Player</th><th>Wins</th><th>Losses</th><th>W-Streak</th><th>L-Streak</th><th>Most SH</th><th class="clickable-header" id="shHeader">Worst SH</th><th class="clickable-header" id="cutHeader">Cuts</th><th class="clickable-header" id="winHeader">Low Win</th><th class="clickable-header" id="lossHeader">High Loss</th><th class="clickable-header" id="timeHeader">Short/Long Game</th></tr></thead><tbody>`;
+        allPlayers.forEach(p => {
+            const d = pData[p];
+            html += `<tr><td class="sticky-col">${p}</td><td class="${d.wins === maxW && maxW > 0 ? 'stat-best' : ''}">${d.wins}</td><td class="${d.losses === maxL && maxL > 0 ? 'stat-worst' : ''}">${d.losses}</td><td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td><td class="${d.maxLossStreak === maxLS && maxLS > 1 ? 'stat-worst' : ''}">${d.maxLossStreak}</td><td class="${d.shCount === maxSH && maxSH > 0 ? 'stat-worst' : ''}">${d.shCount}</td><td class="${d.worstSHScore === worstSH && worstSH > 0 ? 'stat-worst' : ''}">${d.worstSHScore}</td><td>${d.cuts}</td><td class="${d.lowWin === bestW && bestW < 999 ? 'stat-best' : ''}">${d.lowWin === 999 ? '-' : d.lowWin}</td><td class="${d.highLoss === worstL && worstL > 0 ? 'stat-worst' : ''}">${d.highLoss === 0 ? '-' : d.highLoss}</td><td>${formatS(sTime)} / ${formatS(lTime)}</td></tr>`;
+        });
+        cont.innerHTML = html + `</tbody></table>`;
+        document.getElementById('shHeader').onclick = () => { const list = [...stats.historySH].sort((a,b) => b.score - a.score); openPopup("Shanghai History", list.map(i => `${i.name}: ${i.score}`)); };
+        document.getElementById('cutHeader').onclick = () => { const lines = Object.keys(stats.cutBreakdown).filter(k => stats.cutBreakdown[k] > 0).map(k => `${k}: ${stats.cutBreakdown[k]}`); openPopup("Cut Breakdown", lines); };
+        document.getElementById('winHeader').onclick = () => { const sorted = [...stats.historyWins].sort((a,b) => a.total - b.total); openPopup("Historical Scores", sorted.map(i => `${i.name}: ${i.total}`)); };
+        document.getElementById('lossHeader').onclick = () => { const sorted = [...stats.historyLosses].sort((a,b) => b.total - a.total); openPopup("Historical Scores", sorted.map(i => `${i.name}: ${i.total}`)); };
+        document.getElementById('timeHeader').onclick = () => { const sorted = [...stats.gameTimes].sort((a,b) => a.time - b.time); openPopup("Game Durations", sorted.map(i => `${i.players} players: ${formatS(i.time)}`)); };
+    }
+
+    function formatS(s) { if(!s) return "-"; let m = Math.floor(s/60); return `${m}m ${s%60}s`; }
+    function openPopup(title, items) { document.getElementById('popupTitle').innerText = title; document.getElementById('popupList').innerHTML = items.length ? items.map(i => `<li>${i}</li>`).join('') : "No data"; document.getElementById('overlay').classList.remove('hidden'); document.getElementById('detailPopup').classList.remove('hidden'); }
+    function closePopups() { document.getElementById('overlay').classList.add('hidden'); document.getElementById('detailPopup').classList.add('hidden'); }
+
+    document.getElementById('navGame').onclick = () => showTab('game');
+    document.getElementById('navStats').onclick = () => showTab('stats');
+    document.getElementById('addGuestBtn').onclick = () => { const name = prompt("Guest Name:"); if(name){ guestPlayers.push(name); activePlayers.push(name); initSetup(); } };
+    document.getElementById('startGameBtn').onclick = () => {
+        if (activePlayers.length < 2) return alert("Select players");
+        let msg = "";
+        activePlayers.forEach(p => { if (allPlayers.includes(p) && stats.playerData[p].currentWinStreak > 1) msg += `${p.toUpperCase()} IS ON A ${stats.playerData[p].currentWinStreak} GAME WIN STREAK!<br>`; });
+        if (msg) { document.getElementById('streakText').innerHTML = msg; document.getElementById('streakBanner').classList.remove('hidden'); window.streakAlarm = setInterval(playAlarm, 400); } 
+        else startTheGame();
+    };
+    document.getElementById('dismissStreakBtn').onclick = () => { clearInterval(window.streakAlarm); document.getElementById('streakBanner').classList.add('hidden'); startTheGame(); };
+    document.getElementById('finalizeBtn').onclick = finalizeGame;
+    document.getElementById('closePopupBtn').onclick = closePopups;
+    document.getElementById('archiveBtn').onclick = async () => { const name = prompt("Archive Name:"); if(!name) return; await setDoc(doc(db, "shanghaiStats", name), stats); await setDoc(doc(db, "shanghaiStats", currentYear), getEmptyStats()); location.reload(); };
+
+    document.querySelectorAll('.kp-num').forEach(btn => { btn.onclick = () => { kpVal += btn.dataset.val; document.getElementById('kpDisplay').innerText = kpVal; }; });
+    document.getElementById('kpClearBtn').onclick = () => { kpVal = ""; document.getElementById('kpDisplay').innerText = "0"; };
+    document.getElementById('kpShBtn').onclick = () => { kpSh = !kpSh; document.getElementById('kpShBtn').style.background = kpSh ? "red" : "var(--warning)"; };
+    document.getElementById('kpEnterBtn').onclick = () => {
+        const cell = document.getElementById(`cell-${activeCell.r}-${activeCell.i}`);
+        cell.innerText = kpVal || "0";
+        if (kpSh) cell.classList.add('sh-cell'); else cell.classList.remove('sh-cell');
+        document.getElementById('keypadModal').classList.add('hidden');
+        calculate();
+    };
+
+    function startTheGame() {
+        document.getElementById('setupView').classList.add('hidden');
+        document.getElementById('gameView').classList.remove('hidden');
+        document.getElementById('gameTimer').classList.remove('hidden');
+        startTime = Date.now(); accumulatedTime = 0; timerRunning = true;
+        timerInterval = setInterval(() => { if (timerRunning) { const s = Math.floor((accumulatedTime + (Date.now() - startTime)) / 1000); let hrs = Math.floor(s / 3600); let mins = Math.floor((s % 3600) / 60); let secs = s % 60; document.getElementById('gameTimer').innerText = `${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`; } }, 500);
+        buildTable();
+    }
+
+    function showTab(tab) {
+        document.getElementById('navGame').classList.toggle('active', tab === 'game');
+        document.getElementById('navStats').classList.toggle('active', tab === 'stats');
+        document.getElementById('gameView').classList.add('hidden'); document.getElementById('statsView').classList.add('hidden'); document.getElementById('setupView').classList.add('hidden');
+        if (tab === 'game') { if (timerRunning) document.getElementById('gameView').classList.remove('hidden'); else document.getElementById('setupView').classList.remove('hidden'); } 
+        else { document.getElementById('statsView').classList.remove('hidden'); renderOverallStats(); }
+    }
+
+    (async () => {
+        const yearsSnap = await getDocs(collection(db, "shanghaiStats"));
+        const ySelect = document.getElementById('yearSelect');
+        let years = []; yearsSnap.forEach(d => years.push(d.id));
+        if (!years.includes(currentYear)) years.push(currentYear);
+        years.sort().reverse();
+        ySelect.innerHTML = years.map(y => `<option value="${y}" ${y==currentYear?'selected':''}>${y} Season</option>`).join('');
+        ySelect.onchange = (e) => loadStats(e.target.value);
+        await loadStats(currentYear);
+        initSetup();
+    })();
+</script>
+</body>
+</html>
