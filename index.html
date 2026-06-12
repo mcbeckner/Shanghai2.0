@@ -261,7 +261,6 @@
         else { stats = getEmptyStats(); await setDoc(doc(db, "shanghaiStats", year), stats); }
         
         updateStatsDisplays(); // Call this new function to update all dynamic elements
-        // Removed the internal showTab logic from here. Tab switching is now external.
     }
 
     function getEmptyStats() {
@@ -336,6 +335,7 @@
         if (!confirm("Submit scores? (Guests not saved to Stats)")) return;
         const finalSecs = Math.floor((accumulatedTime + (Date.now() - startTime)) / 1000);
         clearInterval(timerInterval);
+        timerRunning = false; // Explicitly set to false here!
         
         const gameTimestamp = Date.now(); // Unique timestamp for this game
 
@@ -804,6 +804,7 @@
         document.getElementById('seatingView').classList.add('hidden');
         
         if (tab === 'game') { 
+            // Only show gameView if game is actively running (timerRunning is true)
             if (timerRunning) document.getElementById('gameView').classList.remove('hidden'); 
             else document.getElementById('setupView').classList.remove('hidden'); 
         } 
