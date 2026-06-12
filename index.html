@@ -19,7 +19,7 @@
         #gameTimer { color: #f1c40f; font-family: monospace; font-size: 1.1em; padding-right: 10px; min-width: 90px; text-align: right; cursor: pointer;}
 
         /* Setup Screen */
-        #setupView { padding: 20px; text-align: center; }
+        #setupView, #seatingView { padding: 20px; text-align: center; }
         .player-chip { 
             display: inline-block; padding: 15px 25px; margin: 5px; 
             border-radius: 25px; background: white; border: 2px solid #ccc; font-weight: bold;
@@ -63,13 +63,62 @@
         .stat-best { background: rgba(46, 204, 113, 0.4) !important; font-weight: bold; }
         .stat-worst { background: rgba(231, 76, 60, 0.4) !important; font-weight: bold; }
         .clickable-header { text-decoration: underline; color: var(--blue); cursor: pointer; }
+
+        .game-history-entry {
+            background: white; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc; 
+            padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative;
+        }
+        .game-history-entry-content {
+            display: flex; flex-direction: column; cursor: pointer;
+        }
+        .game-history-entry-content:hover {
+             background-color: #f9f9f9;
+        }
+        .delete-game-btn {
+            position: absolute; top: 8px; right: 8px;
+            background: var(--danger); color: white; border: none;
+            border-radius: 50%; width: 28px; height: 28px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; cursor: pointer; font-size: 0.8em;
+            box-shadow: 0 2px 2px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        .delete-game-btn:active {
+            transform: translateY(1px);
+        }
+        /* Style for full scoreboard in popup */
+        .popup-full-scoreboard {
+            border-collapse: collapse; width: 100%; margin-top: 10px;
+        }
+        .popup-full-scoreboard th, .popup-full-scoreboard td {
+            border: 1px solid #ddd; padding: 8px; text-align: center;
+        }
+        .popup-full-scoreboard th {
+            background-color: #f2f2f2; font-weight: bold;
+        }
+        .popup-full-scoreboard .sh-cell-popup {
+            background-color: var(--warning); color: white;
+        }
+        .popup-full-scoreboard .cut-row-popup td {
+            background-color: #d1ecf1; font-size: 0.8em;
+        }
+        .popup-full-scoreboard .total-row-popup td {
+            background-color: #e8e8e8; font-weight: bold;
+        }
+        .popup-full-scoreboard .low-score-popup {
+            background-color: #2ecc71 !important; color: white;
+        }
+        .popup-full-scoreboard .high-score-popup {
+            background-color: #e74c3c !important; color: white;
+        }
+
     </style>
 </head>
 <body>
 
 <div class="nav">
-    <button id="navGame" class="active">GAME</button>
-    <button id="navStats">STATS</button>
+    <button id="navGame">GAME</button>
+    <button id="navStats" class="active">STATS</button>
     <button id="navHistory">HISTORY</button>
     <div id="gameTimer" class="hidden">00:00:00</div>
 </div>
@@ -79,12 +128,29 @@
     <button id="dismissStreakBtn" style="padding: 15px 30px; font-size: 1.2em; background: white; border: 4px solid black; border-radius: 12px; font-weight: bold;">Ok, we'll Shanghai them!</button>
 </div>
 
-<div id="setupView">
+<div id="setupView" class="hidden">
     <h2>Who is playing?</h2>
     <div id="playerSelectContainer"></div>
     <button id="addGuestBtn" style="margin-top:10px; padding: 10px 20px; background: #95a5a6; color: white; border: none; border-radius: 8px; font-weight: bold;">+ Add Guest Player</button>
     <br>
-    <button id="startGameBtn" style="margin-top:20px; padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold;">START GAME</button>
+    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+        <button id="seatAssignBtn" style="padding: 15px 20px; background: var(--blue); color: white; border: none; border-radius: 8px; font-weight: bold;">RANDOM SEATING</button>
+        <button id="startGameBtn" style="padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold;">START GAME</button>
+    </div>
+    <div id="setupInfo" style="text-align: center; padding: 15px; font-weight: bold; color: var(--primary); margin-top: 10px;">
+        <div id="setupLastWinner"></div>
+        <div id="setupTotalGames"></div>
+    </div>
+</div>
+
+<div id="seatingView" class="hidden">
+    <h2>Seating Order</h2>
+    <ul id="seatingList" style="list-style: none; padding: 0; font-size: 1.5em; font-weight: bold; margin-bottom: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></ul>
+    <button id="startGameFromSeatingBtn" style="padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; width: 100%;">START GAME IN THIS ORDER</button>
+    <div id="seatingInfo" style="text-align: center; padding: 15px; font-weight: bold; color: var(--primary); margin-top: 10px;">
+        <div id="seatingLastWinner"></div>
+        <div id="seatingTotalGames"></div>
+    </div>
 </div>
 
 <div id="gameView" class="hidden">
@@ -92,14 +158,22 @@
         <table id="gameTable"><thead id="gameHead"></thead><tbody id="gameBody"></tbody></table>
     </div>
     <button id="finalizeBtn" style="width:100%; padding: 20px; background: var(--primary); color: white; border: none; font-weight: bold;">FINISH & SAVE GAME</button>
+    <div id="gameInfo" style="text-align: center; padding: 15px; font-weight: bold; color: var(--primary); margin-top: 5px;">
+        <div id="gameLastWinner"></div>
+        <div id="gameTotalGames"></div>
+    </div>
 </div>
 
-<div id="statsView" class="hidden">
+<div id="statsView">
     <div style="padding: 10px; background: #fff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc;">
         <select id="yearSelect" style="padding: 10px; border-radius: 5px;"></select>
         <button id="archiveBtn" style="background: var(--blue); color: white; border: none; padding: 10px; border-radius: 5px; font-weight: bold;">Archive Year</button>
     </div>
     <div class="table-wrap" id="statsContainer"></div>
+    <div id="statsInfo" style="text-align: center; padding: 15px; font-weight: bold; color: var(--primary); margin-top: 5px;">
+        <div id="statsLastWinner"></div>
+        <div id="statsTotalGames"></div>
+    </div>
 </div>
 
 <div id="historyView" class="hidden">
@@ -109,6 +183,7 @@
 <div id="overlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1500;"></div>
 <div id="detailPopup" class="hidden" style="position:fixed; top:10%; left:5%; width:90%; height:80%; background:white; z-index:2000; border-radius:15px; padding:15px; overflow-y:auto;">
     <h3 id="popupTitle">Details</h3>
+    <div id="popupContent"></div> <!-- New container for different content types -->
     <ul id="popupList" style="list-style: none; padding: 0;"></ul>
     <button id="closePopupBtn" style="width:100%; padding: 15px; background: #ccc; border: none; margin-top: 10px; border-radius: 8px;">Close</button>
 </div>
@@ -164,25 +239,68 @@
         osc.start(); osc.stop(audioCtx.currentTime + 0.15);
     }
 
+    // Fisher-Yates Shuffle
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
     async function loadStats(year) {
         const docSnap = await getDoc(doc(db, "shanghaiStats", year));
         if (docSnap.exists()) { 
             stats = docSnap.data(); 
-            if (!stats.fullGames) stats.fullGames = []; // Patch for older records
+            if (!stats.fullGames) stats.fullGames = [];
+            allPlayers.forEach(p => {
+                if (stats.playerData[p] && !stats.playerData[p].cutBreakdown) {
+                    stats.playerData[p].cutBreakdown = { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 };
+                }
+            });
         } 
         else { stats = getEmptyStats(); await setDoc(doc(db, "shanghaiStats", year), stats); }
-        if (!document.getElementById('statsView').classList.contains('hidden')) renderOverallStats();
-        if (!document.getElementById('historyView').classList.contains('hidden')) renderGameHistory();
+        
+        updateStatsDisplays(); // Call this new function to update all dynamic elements
+        // Removed the internal showTab logic from here. Tab switching is now external.
     }
 
     function getEmptyStats() {
         return {
             playerData: allPlayers.reduce((acc, p) => {
-                acc[p] = { wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, lowWin: 999, highLoss: 0, maxWinStreak: 0, currentWinStreak: 0, maxLossStreak: 0, currentLossStreak: 0 }; return acc;
+                acc[p] = { wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, lowWin: 999, highLoss: 0, maxWinStreak: 0, currentWinStreak: 0, maxLossStreak: 0, currentLossStreak: 0, cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 } }; return acc;
             }, {}),
             historySH: [], historyWins: [], historyLosses: [], gameTimes: [], fullGames: [],
             cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 }
         };
+    }
+
+    function updateStatsDisplays() {
+        let lastWinnerText = "No games played yet";
+        let totalGamesText = "Total Games Played: 0";
+
+        if (stats && stats.fullGames && stats.fullGames.length > 0) {
+            totalGamesText = `Total Games Played: ${stats.fullGames.length}`;
+            // Find the last game and its winner
+            const sortedGames = [...stats.fullGames].sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp ascending
+            const lastGame = sortedGames[sortedGames.length - 1];
+            // Ensure lastGame.scores and lastGame.scores[0] exist before accessing properties
+            const winner = lastGame.scores && lastGame.scores.length > 0 ? [...lastGame.scores].sort((a, b) => a.total - b.total)[0] : null;
+            if (winner) {
+                 lastWinnerText = `Last Winner: ${winner.name} (${winner.total} pts)`;
+            } else {
+                 lastWinnerText = "Last winner not available";
+            }
+           
+        }
+        
+        document.getElementById('setupLastWinner').innerText = lastWinnerText;
+        document.getElementById('setupTotalGames').innerText = totalGamesText;
+        document.getElementById('seatingLastWinner').innerText = lastWinnerText;
+        document.getElementById('seatingTotalGames').innerText = totalGamesText;
+        document.getElementById('gameLastWinner').innerText = lastWinnerText;
+        document.getElementById('gameTotalGames').innerText = totalGamesText;
+        document.getElementById('statsLastWinner').innerText = lastWinnerText;
+        document.getElementById('statsTotalGames').innerText = totalGamesText;
     }
 
     function initSetup() {
@@ -211,25 +329,67 @@
             };
             cont.appendChild(div);
         });
+        updateStatsDisplays(); // Update last winner and total games on setup view
     }
 
     async function finalizeGame() {
         if (!confirm("Submit scores? (Guests not saved to Stats)")) return;
         const finalSecs = Math.floor((accumulatedTime + (Date.now() - startTime)) / 1000);
         clearInterval(timerInterval);
+        
+        const gameTimestamp = Date.now(); // Unique timestamp for this game
+
         let gameScores = activePlayers.map((p, i) => ({ name: p, total: parseInt(document.getElementById(`total-7-${i}`).innerText) }));
         gameScores.sort((a, b) => a.total - b.total);
         const winner = gameScores[0]; const loser = gameScores[gameScores.length - 1];
 
-        stats.gameTimes.push({ players: activePlayers.length, time: finalSecs });
+        // Capture full game state for history
+        let detailedGameRounds = [];
+        let detailedGameCuts = [];
+
+        for (let r = 1; r <= 7; r++) {
+            let roundScores = [];
+            activePlayers.forEach((p, i) => {
+                const cell = document.getElementById(`cell-${r}-${i}`);
+                roundScores.push({
+                    player: p,
+                    score: parseInt(cell.innerText) || 0,
+                    isSH: cell.classList.contains('sh-cell')
+                });
+            });
+            detailedGameRounds.push(roundScores);
+
+            // Capture cut rows associated with this round
+            let currentRowElement = document.getElementById(`row-score-${r}`);
+            let nextSibling = currentRowElement.nextElementSibling;
+            while (nextSibling && nextSibling.classList.contains('cut-row')) {
+                let cutRowData = { round: r, cutterIndex: -1, cutValue: 0, playersAffected: [] };
+                
+                activePlayers.forEach((p, i) => {
+                    const cell = nextSibling.children[i + 1]; // +1 because first child is 'sticky-col'
+                    const cutterAttr = cell.getAttribute('data-cutter');
+                    if (cutterAttr && cutterAttr !== "0") {
+                        cutRowData.cutterIndex = i; // Store index of player who got cut
+                        cutRowData.cutValue = parseInt(cutterAttr);
+                    }
+                    cutRowData.playersAffected.push({ player: p, value: cell.innerText });
+                });
+                detailedGameCuts.push(cutRowData);
+                nextSibling = nextSibling.nextElementSibling;
+            }
+        }
+
+        stats.gameTimes.push({ players: activePlayers.length, time: finalSecs, timestamp: gameTimestamp });
         
-        // SAVE FULL GAME HISTORY
         if(!stats.fullGames) stats.fullGames = [];
         stats.fullGames.push({
-            timestamp: Date.now(),
+            timestamp: gameTimestamp,
             date: new Date().toLocaleString(),
             duration: finalSecs,
-            scores: gameScores
+            scores: gameScores, // Final scores
+            players: activePlayers, // Player order for this game
+            rounds: detailedGameRounds, // Round-by-round scores
+            cutsData: detailedGameCuts // Details about cut rows
         });
 
         activePlayers.forEach(p => {
@@ -247,7 +407,8 @@
                     const cell = document.getElementById(`cell-${r}-${pIdx}`);
                     if(cell.classList.contains('sh-cell')){
                         const s = parseInt(cell.innerText);
-                        pd.shCount++; stats.historySH.push({name: p, score: s});
+                        stats.historySH.push({name: p, score: s, gameTimestamp: gameTimestamp}); // Add timestamp
+                        pd.shCount++; 
                         if(s > pd.worstSHScore) pd.worstSHScore = s;
                     }
                 }
@@ -255,25 +416,75 @@
         });
 
         if (allPlayers.includes(winner.name)) {
-            stats.historyWins.push(winner);
+            stats.historyWins.push({...winner, gameTimestamp: gameTimestamp});
             if (winner.total < stats.playerData[winner.name].lowWin) stats.playerData[winner.name].lowWin = winner.total;
         }
         if (allPlayers.includes(loser.name)) {
-            stats.historyLosses.push(loser);
+            stats.historyLosses.push({...loser, gameTimestamp: gameTimestamp});
             if (loser.total > stats.playerData[loser.name].highLoss) stats.playerData[loser.name].highLoss = loser.total;
         }
 
+        // Process cuts data specifically from the final board state
+        // This is now redundant with detailedGameCuts but keeps original logic for playerData cuts
         document.querySelectorAll('.cut-row').forEach(row => {
             activePlayers.forEach((p, i) => {
                 const cVal = row.children[i+1].getAttribute('data-cutter');
                 if (cVal && cVal !== "0" && allPlayers.includes(p)) {
-                    stats.playerData[p].cuts++; stats.cutBreakdown[cVal]++;
+                    stats.playerData[p].cuts++; 
+                    stats.cutBreakdown[cVal]++;
+                    if (!stats.playerData[p].cutBreakdown) stats.playerData[p].cutBreakdown = { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 };
+                    if (stats.playerData[p].cutBreakdown[cVal] !== undefined) stats.playerData[p].cutBreakdown[cVal]++;
                 }
             });
         });
 
         await setDoc(doc(db, "shanghaiStats", currentYear), stats);
-        location.reload();
+        // Load updated stats from Firebase and then explicitly switch to stats tab
+        await loadStats(currentYear); 
+        showTab('stats'); 
+    }
+
+    async function deleteGame(timestamp) {
+        if (!confirm("Are you sure you want to delete this game? This will attempt to reverse associated stats (wins/losses, game history/times), but some detailed historical stats (like SH counts and cuts) may not be perfectly reversed due to limitations in historical data storage. Streaks and best/worst scores will also not be fully recalculated.")) {
+            return;
+        }
+
+        const gameToDelete = stats.fullGames.find(g => g.timestamp === timestamp);
+        if (!gameToDelete) return;
+
+        // Reverse wins/losses
+        const winner = [...gameToDelete.scores].sort((a,b) => a.total - b.total)[0];
+        const loser = [...gameToDelete.scores].sort((a,b) => a.total - b.total)[gameToDelete.scores.length - 1];
+
+        gameToDelete.scores.forEach(playerScore => {
+            if (allPlayers.includes(playerScore.name)) {
+                const pd = stats.playerData[playerScore.name];
+                if (playerScore.name === winner.name) {
+                    pd.wins--;
+                    // Streaks and lowWin/highLoss are complex to perfectly revert historically
+                } else if (playerScore.name === loser.name) {
+                    pd.losses--;
+                    // Streaks and lowWin/highLoss are complex to perfectly revert historically
+                }
+                // Cannot reliably revert shCount and individual cutBreakdown without storing full round data in historySH/cutBreakdown arrays
+                // and explicitly checking if a player's lowWin/highLoss was due to this deleted game
+            }
+        });
+        
+        // Remove from history arrays
+        stats.fullGames = stats.fullGames.filter(g => g.timestamp !== timestamp);
+        stats.gameTimes = stats.gameTimes.filter(gt => gt.timestamp !== timestamp); 
+        stats.historyWins = stats.historyWins.filter(hw => hw.gameTimestamp !== timestamp); 
+        stats.historyLosses = stats.historyLosses.filter(hl => hl.gameTimestamp !== timestamp); 
+        stats.historySH = stats.historySH.filter(sh => sh.gameTimestamp !== timestamp); // Also filter SH history
+
+        // If cutsData was stored with the game, we would need to reverse overall cutBreakdown and player cutBreakdown too.
+        // For now, these are not reversed for historical deletions as per the confirmation message.
+
+        await setDoc(doc(db, "shanghaiStats", currentYear), stats);
+        updateStatsDisplays();
+        renderGameHistory();
+        renderOverallStats(); // Re-render stats to reflect changes
     }
 
     function buildTable() {
@@ -322,13 +533,16 @@
     function openKeypad(r, i, pName) {
         activeCell = { r, i }; kpVal = ""; kpSh = false;
         document.getElementById('kpDisplay').innerText = "0";
-        document.getElementById('kpShBtn').style.background = "var(--warning)";
+        document.getElementById('kpShBtn').style.setProperty('background', 'var(--warning)', 'important');
         document.getElementById('keypadModal').classList.remove('hidden');
     }
 
     function openCutSelection(r) {
         document.getElementById('popupTitle').innerText = "Who got the Cut?";
+        // Clear previous content
+        document.getElementById('popupContent').innerHTML = ''; 
         const list = document.getElementById('popupList'); list.innerHTML = '';
+
         activePlayers.forEach((p, i) => {
             const btn = document.createElement('button');
             btn.style.width = "100%"; btn.style.padding = "15px"; btn.style.margin = "5px 0"; btn.innerText = p;
@@ -355,21 +569,122 @@
         const cont = document.getElementById('statsContainer'); const pData = stats.playerData;
         const getHigh = (key) => Math.max(...allPlayers.map(p => pData[p][key]));
         const getLow = (key) => Math.min(...allPlayers.map(p => pData[p][key] === 999 ? 1000 : pData[p][key]));
+        
         const maxW = getHigh('wins'), maxL = getHigh('losses'), maxSH = getHigh('shCount'), maxWS = getHigh('maxWinStreak'), maxLS = getHigh('maxLossStreak'), worstSH = getHigh('worstSHScore'), bestW = getLow('lowWin'), worstL = getHigh('highLoss');
+        const maxCuts = getHigh('cuts'), minCuts = getLow('cuts');
+        
         const sTime = stats.gameTimes.length ? Math.min(...stats.gameTimes.map(t => t.time)) : 0;
         const lTime = stats.gameTimes.length ? Math.max(...stats.gameTimes.map(t => t.time)) : 0;
+        
         let html = `<table><thead><tr><th class="sticky-col">Player</th><th>Wins</th><th>Losses</th><th>W-Streak</th><th>L-Streak</th><th>Most SH</th><th class="clickable-header" id="shHeader">Worst SH</th><th class="clickable-header" id="cutHeader">Cuts</th><th class="clickable-header" id="winHeader">Low Win</th><th class="clickable-header" id="lossHeader">High Loss</th><th class="clickable-header" id="timeHeader">Short/Long Game</th></tr></thead><tbody>`;
         allPlayers.forEach(p => {
             const d = pData[p];
-            html += `<tr><td class="sticky-col">${p}</td><td class="${d.wins === maxW && maxW > 0 ? 'stat-best' : ''}">${d.wins}</td><td class="${d.losses === maxL && maxL > 0 ? 'stat-worst' : ''}">${d.losses}</td><td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td><td class="${d.maxLossStreak === maxLS && maxLS > 1 ? 'stat-worst' : ''}">${d.maxLossStreak}</td><td class="${d.shCount === maxSH && maxSH > 0 ? 'stat-worst' : ''}">${d.shCount}</td><td class="${d.worstSHScore === worstSH && worstSH > 0 ? 'stat-worst' : ''}">${d.worstSHScore}</td><td>${d.cuts}</td><td class="${d.lowWin === bestW && bestW < 999 ? 'stat-best' : ''}">${d.lowWin === 999 ? '-' : d.lowWin}</td><td class="${d.highLoss === worstL && worstL > 0 ? 'stat-worst' : ''}">${d.highLoss === 0 ? '-' : d.highLoss}</td><td>${formatS(sTime)} / ${formatS(lTime)}</td></tr>`;
+            html += `<tr>
+                <td class="sticky-col">${p}</td>
+                <td class="${d.wins === maxW && maxW > 0 ? 'stat-best' : ''}">${d.wins}</td>
+                <td class="${d.losses === maxL && maxL > 0 ? 'stat-worst' : ''}">${d.losses}</td>
+                <td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td>
+                <td class="${d.maxLossStreak === maxLS && maxLS > 1 ? 'stat-worst' : ''}">${d.maxLossStreak}</td>
+                <td class="${d.shCount === maxSH && maxSH > 0 ? 'stat-worst' : ''}">${d.shCount}</td>
+                <td class="${d.worstSHScore === worstSH && worstSH > 0 ? 'stat-worst' : ''}">${d.worstSHScore}</td>
+                <td class="clickable-header player-cut-cell ${d.cuts === maxCuts && maxCuts > 0 ? 'stat-best' : ''} ${d.cuts === minCuts && minCuts < 1000 ? 'stat-worst' : ''}" data-player="${p}">${d.cuts}</td>
+                <td class="${d.lowWin === bestW && bestW < 999 ? 'stat-best' : ''}">${d.lowWin === 999 ? '-' : d.lowWin}</td>
+                <td class="${d.highLoss === worstL && worstL > 0 ? 'stat-worst' : ''}">${d.highLoss === 0 ? '-' : d.highLoss}</td>
+                <td>${formatS(sTime)} / ${formatS(lTime)}</td>
+            </tr>`;
         });
         cont.innerHTML = html + `</tbody></table>`;
-        document.getElementById('shHeader').onclick = () => { const list = [...stats.historySH].sort((a,b) => b.score - a.score); openPopup("Shanghai History", list.map(i => `${i.name}: ${i.score}`)); };
-        document.getElementById('cutHeader').onclick = () => { const lines = Object.keys(stats.cutBreakdown).filter(k => stats.cutBreakdown[k] > 0).map(k => `${k}: ${stats.cutBreakdown[k]}`); openPopup("Cut Breakdown", lines); };
-        document.getElementById('winHeader').onclick = () => { const sorted = [...stats.historyWins].sort((a,b) => a.total - b.total); openPopup("Historical Scores", sorted.map(i => `${i.name}: ${i.total}`)); };
-        document.getElementById('lossHeader').onclick = () => { const sorted = [...stats.historyLosses].sort((a,b) => b.total - a.total); openPopup("Historical Scores", sorted.map(i => `${i.name}: ${i.total}`)); };
+        
+        document.querySelectorAll('.player-cut-cell').forEach(cell => {
+            cell.onclick = () => {
+                const pName = cell.getAttribute('data-player');
+                const pBreakdown = stats.playerData[pName].cutBreakdown || {};
+                const lines = Object.keys(pBreakdown).filter(k => pBreakdown[k] > 0).map(k => `${k}: ${pBreakdown[k]}`);
+                openPopup(`${pName}'s Cut Breakdown`, lines);
+            };
+        });
+
+        document.getElementById('shHeader').onclick = () => { const list = [...stats.historySH].sort((a,b) => b.score - a.score); openPopup("Shanghai History", list.map(i => `${i.name}: ${i.name} - ${i.score}`)); };
+        document.getElementById('cutHeader').onclick = () => { const lines = Object.keys(stats.cutBreakdown).filter(k => stats.cutBreakdown[k] > 0).map(k => `${k}: ${stats.cutBreakdown[k]}`); openPopup("Total Game Cuts", lines); };
+        document.getElementById('winHeader').onclick = () => { const sorted = [...stats.historyWins].sort((a,b) => a.total - b.total); openPopup("Historical Wins", sorted.map(i => `${i.name}: ${i.total}`)); };
+        document.getElementById('lossHeader').onclick = () => { const sorted = [...stats.historyLosses].sort((a,b) => b.total - a.total); openPopup("Historical Losses", sorted.map(i => `${i.name}: ${i.total}`)); };
         document.getElementById('timeHeader').onclick = () => { const sorted = [...stats.gameTimes].sort((a,b) => a.time - b.time); openPopup("Game Durations", sorted.map(i => `${i.players} players: ${formatS(i.time)}`)); };
     }
+
+    // New showGameDetails function to display full scoreboard or summary
+    function showGameDetails(game) {
+        document.getElementById('popupTitle').innerText = `Game on ${game.date}`;
+        document.getElementById('popupContent').innerHTML = ''; // Clear existing content
+        document.getElementById('popupList').innerHTML = ''; // Clear existing list (used for generic popup)
+
+        if (game.rounds && game.players) {
+            // Render full scoreboard if detailed data is available (for newer games)
+            let scoreboardHtml = `<p>Duration: ${formatS(game.duration)}</p>`;
+            scoreboardHtml += `<div class="table-wrap" style="max-height: 60vh;">`; // Wrap table for scrolling
+            scoreboardHtml += `<table class="popup-full-scoreboard"><thead><tr><th class="sticky-col">Rnd</th>`;
+            game.players.forEach(p => { scoreboardHtml += `<th>${p}</th>`; });
+            scoreboardHtml += `</tr></thead><tbody>`;
+
+            let runningTotals = new Array(game.players.length).fill(0);
+            for (let r = 0; r < game.rounds.length; r++) {
+                const roundScores = game.rounds[r];
+                scoreboardHtml += `<tr><td class="sticky-col">${r + 1}</td>`;
+                game.players.forEach((player, pIdx) => {
+                    const scoreEntry = roundScores.find(rs => rs.player === player);
+                    const score = scoreEntry ? scoreEntry.score : 0;
+                    const isSH = scoreEntry ? scoreEntry.isSH : false;
+                    runningTotals[pIdx] += score;
+                    scoreboardHtml += `<td class="${isSH ? 'sh-cell-popup' : ''}">${score}</td>`;
+                });
+                scoreboardHtml += `</tr>`;
+
+                // Add cut rows if any for this round
+                game.cutsData.filter(cut => cut.round === (r + 1)).forEach(cutData => {
+                    scoreboardHtml += `<tr class="cut-row-popup"><td class="sticky-col">CUT</td>`;
+                    game.players.forEach((player, pIdx) => {
+                        const affectedEntry = cutData.playersAffected.find(pa => pa.player === player);
+                        const value = affectedEntry ? affectedEntry.value : '-';
+                        if (value === '50') runningTotals[pIdx] += 50; // Add 50 for cuts
+                        scoreboardHtml += `<td>${value}</td>`;
+                    });
+                    scoreboardHtml += `</tr>`;
+                });
+
+                // Total row (simulated for popup, not real-time calculation, apply classes)
+                let roundFinals = [...runningTotals]; // Copy for min/max for this point in the game
+                const min = Math.min(...roundFinals); const max = Math.max(...roundFinals);
+                scoreboardHtml += `<tr class="total-row-popup"><td class="sticky-col">TOT</td>`;
+                runningTotals.forEach(total => {
+                    let totalClasses = '';
+                    if (total === min) totalClasses += ' low-score-popup';
+                    if (total === max) totalClasses += ' high-score-popup';
+                    scoreboardHtml += `<td class="${totalClasses.trim()}">${total}</td>`;
+                });
+                scoreboardHtml += `</tr>`;
+            }
+            scoreboardHtml += `</tbody></table></div>`; // Close table-wrap and table
+            document.getElementById('popupContent').innerHTML = scoreboardHtml;
+        } else {
+            // Fallback for older games or generic data
+            let detailsHtml = `<li style="padding: 5px 0; border-bottom: 1px solid #eee;">Duration: ${formatS(game.duration)}</li>`;
+            detailsHtml += `<li style="padding: 5px 0; font-weight: bold;">Final Scores:</li>`;
+            detailsHtml += `<li style="padding: 5px 0; font-size:0.9em; color:#7f8c8d;">(Detailed round scores not available for this older game)</li>`;
+
+            const sortedScores = [...game.scores].sort((a,b) => a.total - b.total);
+            sortedScores.forEach((s, i) => {
+                let color = i === 0 ? "color: var(--accent);" : i === sortedScores.length - 1 ? "color: var(--danger);" : "color: var(--primary);";
+                detailsHtml += `<li style="padding: 5px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
+                    <span style="${color}">${i+1}. ${s.name}</span>
+                    <span style="${color}">${s.total}</span>
+                </li>`;
+            });
+            document.getElementById('popupList').innerHTML = detailsHtml;
+        }
+
+        document.getElementById('overlay').classList.remove('hidden');
+        document.getElementById('detailPopup').classList.remove('hidden');
+    }
+
 
     function renderGameHistory() {
         const cont = document.getElementById('historyContainer');
@@ -382,16 +697,18 @@
         let html = "";
         
         sortedGames.forEach((game, idx) => {
-            let scoresList = [...game.scores].sort((a,b) => a.total - b.total);
+            let scoresList = [...game.scores].sort((a, b) => a.total - b.total);
             let durationText = game.duration ? formatS(game.duration) : "N/A";
             
-            html += `<div style="background: white; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <div style="font-weight: bold; border-bottom: 2px solid #eee; padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between;">
-                    <span>Game ${sortedGames.length - idx}</span>
-                    <span style="color: #7f8c8d; font-weight: normal; font-size: 0.9em;">${game.date || 'Unknown'} (${durationText})</span>
-                </div>
-                <table style="width: 100%; border-collapse: collapse; min-width: auto;">
-                    <tbody>`;
+            html += `<div class="game-history-entry">
+                <button class="delete-game-btn" onclick="deleteGame(${game.timestamp})">X</button>
+                <div class="game-history-entry-content" onclick="showGameDetails(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                    <div style="font-weight: bold; border-bottom: 2px solid #eee; padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between;">
+                        <span>Game ${sortedGames.length - idx}</span>
+                        <span style="color: #7f8c8d; font-weight: normal; font-size: 0.9em;">${game.date || 'Unknown'} (${durationText})</span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; min-width: auto;">
+                        <tbody>`;
             
             scoresList.forEach((s, i) => {
                 let color = i === 0 ? "color: var(--accent);" : i === scoresList.length - 1 ? "color: var(--danger);" : "";
@@ -401,14 +718,21 @@
                 </tr>`;
             });
             
-            html += `</tbody></table></div>`;
+            html += `</tbody></table></div></div>`;
         });
         
         cont.innerHTML = html;
     }
 
     function formatS(s) { if(!s) return "-"; let m = Math.floor(s/60); return `${m}m ${s%60}s`; }
-    function openPopup(title, items) { document.getElementById('popupTitle').innerText = title; document.getElementById('popupList').innerHTML = items.length ? items.map(i => `<li style="padding: 5px 0; border-bottom: 1px solid #eee;">${i}</li>`).join('') : "No data"; document.getElementById('overlay').classList.remove('hidden'); document.getElementById('detailPopup').classList.remove('hidden'); }
+    // Modified openPopup to be used by showGameDetails as well
+    function openPopup(title, items) { 
+        document.getElementById('popupTitle').innerText = title; 
+        document.getElementById('popupContent').innerHTML = ''; // Clear detailed content
+        document.getElementById('popupList').innerHTML = items.length ? items.map(i => `<li style="padding: 5px 0; border-bottom: 1px solid #eee;">${i}</li>`).join('') : "No data"; 
+        document.getElementById('overlay').classList.remove('hidden'); 
+        document.getElementById('detailPopup').classList.remove('hidden'); 
+    }
     function closePopups() { document.getElementById('overlay').classList.add('hidden'); document.getElementById('detailPopup').classList.add('hidden'); }
 
     document.getElementById('navGame').onclick = () => showTab('game');
@@ -416,13 +740,27 @@
     document.getElementById('navHistory').onclick = () => showTab('history');
     document.getElementById('addGuestBtn').onclick = () => { const name = prompt("Guest Name:"); if(name){ guestPlayers.push(name); activePlayers.push(name); initSetup(); } };
     
-    document.getElementById('startGameBtn').onclick = () => {
+    function processStartGame() {
         if (activePlayers.length < 2) return alert("Select players");
         let msg = "";
         activePlayers.forEach(p => { if (allPlayers.includes(p) && stats.playerData[p].currentWinStreak > 1) msg += `${p.toUpperCase()} IS ON A ${stats.playerData[p].currentWinStreak} GAME WIN STREAK!<br>`; });
         if (msg) { document.getElementById('streakText').innerHTML = msg; document.getElementById('streakBanner').classList.remove('hidden'); window.streakAlarm = setInterval(playAlarm, 400); } 
         else startTheGame();
+    }
+
+    document.getElementById('seatAssignBtn').onclick = () => {
+        if (activePlayers.length < 2) return alert("Select players first");
+        shuffleArray(activePlayers);
+        const list = document.getElementById('seatingList');
+        list.innerHTML = activePlayers.map((p, i) => `<li style="padding: 15px; border-bottom: 1px solid #eee;">Seat ${i+1}: <span style="color:var(--primary);">${p}</span></li>`).join('');
+        document.getElementById('setupView').classList.add('hidden');
+        document.getElementById('seatingView').classList.remove('hidden');
+        updateStatsDisplays(); // Update on seating view
     };
+
+    document.getElementById('startGameBtn').onclick = processStartGame;
+    document.getElementById('startGameFromSeatingBtn').onclick = processStartGame;
+
     document.getElementById('dismissStreakBtn').onclick = () => { clearInterval(window.streakAlarm); document.getElementById('streakBanner').classList.add('hidden'); startTheGame(); };
     document.getElementById('finalizeBtn').onclick = finalizeGame;
     document.getElementById('closePopupBtn').onclick = closePopups;
@@ -430,7 +768,12 @@
 
     document.querySelectorAll('.kp-num').forEach(btn => { btn.onclick = () => { kpVal += btn.dataset.val; document.getElementById('kpDisplay').innerText = kpVal; }; });
     document.getElementById('kpClearBtn').onclick = () => { kpVal = ""; document.getElementById('kpDisplay').innerText = "0"; };
-    document.getElementById('kpShBtn').onclick = () => { kpSh = !kpSh; document.getElementById('kpShBtn').style.background = kpSh ? "red" : "var(--warning)"; };
+    
+    document.getElementById('kpShBtn').onclick = () => { 
+        kpSh = !kpSh; 
+        document.getElementById('kpShBtn').style.setProperty('background', kpSh ? 'red' : 'var(--warning)', 'important'); 
+    };
+    
     document.getElementById('kpEnterBtn').onclick = () => {
         const cell = document.getElementById(`cell-${activeCell.r}-${activeCell.i}`);
         cell.innerText = kpVal || "0";
@@ -441,6 +784,7 @@
 
     function startTheGame() {
         document.getElementById('setupView').classList.add('hidden');
+        document.getElementById('seatingView').classList.add('hidden');
         document.getElementById('gameView').classList.remove('hidden');
         document.getElementById('gameTimer').classList.remove('hidden');
         startTime = Date.now(); accumulatedTime = 0; timerRunning = true;
@@ -457,6 +801,7 @@
         document.getElementById('statsView').classList.add('hidden'); 
         document.getElementById('setupView').classList.add('hidden');
         document.getElementById('historyView').classList.add('hidden');
+        document.getElementById('seatingView').classList.add('hidden');
         
         if (tab === 'game') { 
             if (timerRunning) document.getElementById('gameView').classList.remove('hidden'); 
@@ -470,9 +815,13 @@
             document.getElementById('historyView').classList.remove('hidden');
             renderGameHistory();
         }
+        updateStatsDisplays(); // Ensure displays are updated whenever tab changes
     }
 
     (async () => {
+        window.deleteGame = deleteGame; // Make deleteGame globally accessible for onclick
+        window.showGameDetails = showGameDetails; // Make showGameDetails globally accessible
+
         const yearsSnap = await getDocs(collection(db, "shanghaiStats"));
         const ySelect = document.getElementById('yearSelect');
         let years = []; yearsSnap.forEach(d => years.push(d.id));
@@ -480,8 +829,11 @@
         years.sort().reverse();
         ySelect.innerHTML = years.map(y => `<option value="${y}" ${y==currentYear?'selected':''}>${y} Season</option>`).join('');
         ySelect.onchange = (e) => loadStats(e.target.value);
-        await loadStats(currentYear);
-        initSetup();
+        
+        // Initial load logic:
+        await loadStats(currentYear); // Load initial data
+        initSetup(); // Initialize setup view (player chips)
+        showTab('stats'); // Explicitly show stats tab on initial load
     })();
 </script>
 </body>
